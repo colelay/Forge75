@@ -1,0 +1,7 @@
+{
+  "name": "Forge75",
+  "description": "A highly customizable 75-day challenge platform to push your limits, track your health, and forge a better version of yourself.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
