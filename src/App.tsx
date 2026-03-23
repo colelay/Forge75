@@ -12,6 +12,7 @@ import BibleStudyView from './components/BibleStudy';
 import { User, Challenge } from './types';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -272,6 +273,7 @@ export default function App() {
           </AnimatePresence>
         </Layout>
       )}
+      <SpeedInsights />
     </ErrorBoundary>
   );
 }
