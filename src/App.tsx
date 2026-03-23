@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import Auth from './components/Auth';
 import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
@@ -272,6 +273,7 @@ export default function App() {
           </AnimatePresence>
         </Layout>
       )}
+      <Analytics />
     </ErrorBoundary>
   );
 }
