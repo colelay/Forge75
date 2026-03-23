@@ -24,6 +24,7 @@ export default function AdminView({ user, onBack }: AdminViewProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'promos'>('users');
   const [newPromo, setNewPromo] = useState({ code: '', discount_type: 'free', discount_value: 0 });
   const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -42,14 +43,41 @@ export default function AdminView({ user, onBack }: AdminViewProps) {
     setPromoCodes(data);
   };
 
-  const handleToggleAdmin = async (email: string, currentStatus: boolean) => {
-    if (email.toLowerCase() === 'clay8888yt@gmail.com') return;
-    await fetch('/api/admin/set-admin', {
+  const handleAddAdmin = async () => {
+    if (!newAdminEmail) return;
+    setStatus(null);
+    const res = await fetch('/api/admin/set-admin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, isAdmin: !currentStatus })
+      body: JSON.stringify({ adminId: user.id, email: newAdminEmail.trim(), isAdmin: true })
     });
-    fetchUsers();
+    
+    if (res.ok) {
+      setNewAdminEmail('');
+      setStatus({ type: 'success', message: 'Admin added successfully' });
+      fetchUsers();
+    } else {
+      const data = await res.json();
+      setStatus({ type: 'error', message: data.error || 'Failed to add admin' });
+    }
+  };
+
+  const handleToggleAdmin = async (email: string, currentStatus: boolean) => {
+    if (email.toLowerCase() === 'clay8888yt@gmail.com') return;
+    setStatus(null);
+    const res = await fetch('/api/admin/set-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminId: user.id, email: email.trim(), isAdmin: !currentStatus })
+    });
+    
+    if (res.ok) {
+      setStatus({ type: 'success', message: `Admin ${!currentStatus ? 'added' : 'removed'} successfully` });
+      fetchUsers();
+    } else {
+      const data = await res.json();
+      setStatus({ type: 'error', message: data.error || 'Failed to update admin' });
+    }
   };
 
   const handleTogglePromo = async (id: number, currentStatus: boolean) => {
@@ -108,7 +136,7 @@ export default function AdminView({ user, onBack }: AdminViewProps) {
           <div className="space-y-6">
             <div className="glass-card p-6">
               <h3 className="text-lg font-bold mb-4">Add New Administrator</h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-4">
                 <input 
                   placeholder="Email address"
                   value={newAdminEmail}
@@ -122,6 +150,15 @@ export default function AdminView({ user, onBack }: AdminViewProps) {
                   Add Admin
                 </button>
               </div>
+              {status && (
+                <div className={cn(
+                  "p-3 rounded-xl text-xs font-bold flex items-center gap-2",
+                  status.type === 'success' ? "bg-emerald-400/10 text-emerald-400" : "bg-red-400/10 text-red-400"
+                )}>
+                  {status.type === 'success' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                  {status.message}
+                </div>
+              )}
             </div>
 
             <div className="glass-card overflow-hidden">

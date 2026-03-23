@@ -11,10 +11,15 @@ import {
   Settings,
   Pill,
   ShieldCheck,
-  Trash2
+  Trash2,
+  Camera,
+  Upload,
+  Sun,
+  Moon,
+  Palette
 } from 'lucide-react';
 import { User, Challenge, MedConfig } from '../types';
-import { cn } from '../lib/utils';
+import { cn, normalizePhone } from '../lib/utils';
 
 interface ProfileViewProps {
   user: User;
@@ -26,6 +31,7 @@ interface ProfileViewProps {
 
 export default function ProfileView({ user, challenge, onLogout, onUpdateUser, setActiveTab }: ProfileViewProps) {
   const [isEditingMeds, setIsEditingMeds] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [meds, setMeds] = useState<MedConfig[]>(challenge?.meds_vitamins || []);
   const [newMed, setNewMed] = useState<MedConfig>({
     name: '',
@@ -69,6 +75,35 @@ export default function ProfileView({ user, challenge, onLogout, onUpdateUser, s
     if (res.ok) onUpdateUser({ ...user, has_diabetes: newVal });
   };
 
+  const toggleTheme = async () => {
+    const newTheme = user.theme === 'light' ? 'dark' : 'light';
+    const res = await fetch(`/api/profile/${user.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: newTheme })
+    });
+    if (res.ok) onUpdateUser({ ...user, theme: newTheme });
+  };
+
+  const updateAccentColor = async (color: string) => {
+    const res = await fetch(`/api/profile/${user.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accent_color: color })
+    });
+    if (res.ok) onUpdateUser({ ...user, accent_color: color });
+  };
+
+  const toggleNotifications = async () => {
+    const newVal = !user.notifications_enabled;
+    const res = await fetch(`/api/profile/${user.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notifications_enabled: newVal })
+    });
+    if (res.ok) onUpdateUser({ ...user, notifications_enabled: newVal });
+  };
+
   const handleUpdateMeds = async () => {
     if (!challenge) return;
     await fetch('/api/challenge/setup', {
@@ -84,28 +119,91 @@ export default function ProfileView({ user, challenge, onLogout, onUpdateUser, s
   };
 
   const handleResetChallenge = async () => {
-    if (window.confirm("Are you sure? This will delete ALL your progress and food logs. This cannot be undone.")) {
-      try {
-        const res = await fetch('/api/challenge/reset', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id })
-        });
-        if (res.ok) {
-          window.location.reload();
-        } else {
-          alert("Failed to reset challenge. Please try again.");
-        }
-      } catch (err) {
-        alert("Connection error. Please try again.");
+    try {
+      const res = await fetch('/api/challenge/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert("Failed to reset challenge. Please try again.");
       }
+    } catch (err) {
+      alert("Connection error. Please try again.");
     }
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      const res = await fetch(`/api/profile/photo/${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photoUrl: base64 })
+      });
+      if (res.ok) {
+        onUpdateUser({
+          ...user,
+          profile: user.profile ? { ...user.profile, starting_photo_url: base64 } : undefined
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const dietaryOptions = [
+    'Fish', 'Dairy', 'Gluten', 'Nuts', 'Shellfish', 'Soy', 'Eggs', 'Pork', 'Beef'
+  ];
+
+  const toggleDietary = async (option: string) => {
+    const current = user.profile?.dietary_restrictions?.split(',') || [];
+    const updated = current.includes(option)
+      ? current.filter(o => o !== option)
+      : [...current, option];
+    
+    const res = await fetch(`/api/profile/${user.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...user.profile,
+        religious_mode: user.religious_mode,
+        has_diabetes: user.has_diabetes,
+        dietary_restrictions: updated.join(',')
+      })
+    });
+    if (res.ok) {
+      onUpdateUser({
+        ...user,
+        profile: user.profile ? { ...user.profile, dietary_restrictions: updated.join(',') } : undefined
+      });
+    }
+  };
+
+  const updatePhone = async (phone: string) => {
+    const normalized = normalizePhone(phone);
+    const res = await fetch(`/api/profile/${user.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...user.profile,
+        religious_mode: user.religious_mode,
+        has_diabetes: user.has_diabetes,
+        phone: normalized
+      })
+    });
+    if (res.ok) onUpdateUser({ ...user, phone: normalized });
+  };
+
   return (
-    <div className="space-y-8">
-      <div className="flex items-center gap-6">
-        <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-brand-accent/30 accent-glow">
+    <div className="space-y-6 md:space-y-8 pb-32">
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
+        <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl overflow-hidden border-4 border-brand-accent/30 accent-glow relative group shrink-0">
           {user.profile?.starting_photo_url ? (
             <img src={user.profile.starting_photo_url} className="w-full h-full object-cover" />
           ) : (
@@ -113,21 +211,38 @@ export default function ProfileView({ user, challenge, onLogout, onUpdateUser, s
               <UserIcon size={40} className="text-brand-muted" />
             </div>
           )}
+          <label className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+            <Camera size={24} className="text-brand-text-inverse mb-1" />
+            <span className="text-[10px] font-bold uppercase text-brand-text-inverse">Update</span>
+            <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+          </label>
         </div>
-        <div>
-          <h1 className="text-3xl font-display font-bold">{user.profile?.name || 'Member'}</h1>
-          <p className="text-brand-muted">{user.email}</p>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <span className="text-[10px] bg-brand-accent/20 text-brand-accent px-2 py-1 rounded-full font-bold uppercase tracking-wider">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl md:text-4xl font-display font-black tracking-tighter truncate">{user.profile?.name || 'Member'}</h1>
+          <div className="flex flex-col gap-1 mt-1">
+            <p className="text-brand-muted text-sm truncate font-medium">{user.email}</p>
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <input 
+                type="tel"
+                placeholder="Add phone number"
+                value={user.phone || ''}
+                onChange={(e) => onUpdateUser({ ...user, phone: e.target.value })}
+                onBlur={(e) => updatePhone(e.target.value)}
+                className="bg-transparent text-sm text-brand-muted border-none p-0 focus:ring-0 w-full sm:w-40 text-center sm:text-left placeholder:text-brand-muted/50 font-bold"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-4">
+            <span className="text-[10px] bg-brand-accent/20 text-brand-accent px-3 py-1 rounded-full font-black uppercase tracking-[0.2em] border border-brand-accent/20">
               {challenge ? 'Challenge Active' : 'No Active Challenge'}
             </span>
             {user.profile && (
-              <span className="text-[10px] bg-white/10 text-white px-2 py-1 rounded-full font-bold uppercase tracking-wider">
+              <span className="text-[10px] bg-white/10 text-brand-text px-3 py-1 rounded-full font-black uppercase tracking-[0.2em] border border-white/10">
                 {Math.floor(user.profile.height / 12)}'{user.profile.height % 12}" | {user.profile.starting_weight} lbs
               </span>
             )}
             {user.is_subscribed && (
-              <span className="text-[10px] bg-emerald-400/20 text-emerald-400 px-2 py-1 rounded-full font-bold uppercase tracking-wider">
+              <span className="text-[10px] bg-emerald-400/20 text-emerald-400 px-3 py-1 rounded-full font-black uppercase tracking-[0.2em] border border-emerald-400/20">
                 Premium Member
               </span>
             )}
@@ -138,73 +253,148 @@ export default function ProfileView({ user, challenge, onLogout, onUpdateUser, s
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Settings Section */}
         <div className="space-y-6">
-          <div className="glass-card p-6">
-            <h3 className="text-lg font-display font-bold mb-4 flex items-center gap-2">
+          <div className="glass-card p-6 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-brand-accent/5 rounded-bl-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700" />
+            <h3 className="text-lg font-display font-black mb-6 flex items-center gap-2 tracking-tight">
               <Settings className="text-brand-accent" size={20} />
               Preferences
             </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+            <div className="space-y-4 relative z-10">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
                 <div className="flex items-center gap-3">
                   <Cross size={18} className="text-brand-muted" />
                   <div>
-                    <p className="text-sm font-medium">Religious Mode</p>
-                    <p className="text-xs text-brand-muted">Bible quotes & devotions</p>
+                    <p className="text-sm font-black uppercase tracking-widest">Religious Mode</p>
+                    <p className="text-[10px] text-brand-muted font-medium">Bible quotes & devotions</p>
                   </div>
                 </div>
                 <button 
                   onClick={toggleReligious}
                   className={cn(
-                    "w-12 h-6 rounded-full transition-all relative",
+                    "w-12 h-6 rounded-full transition-all relative shadow-inner",
                     user.religious_mode ? "bg-brand-accent" : "bg-white/10"
                   )}
                 >
                   <div className={cn(
-                    "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                    "absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-md",
                     user.religious_mode ? "left-7" : "left-1"
                   )} />
                 </button>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
                 <div className="flex items-center gap-3">
                   <Activity size={18} className="text-brand-muted" />
                   <div>
-                    <p className="text-sm font-medium">Diabetes Mode</p>
-                    <p className="text-xs text-brand-muted">Low sugar recipe focus</p>
+                    <p className="text-sm font-black uppercase tracking-widest">Diabetes Mode</p>
+                    <p className="text-[10px] text-brand-muted font-medium">Low sugar recipe focus</p>
                   </div>
                 </div>
                 <button 
                   onClick={toggleDiabetes}
                   className={cn(
-                    "w-12 h-6 rounded-full transition-all relative",
+                    "w-12 h-6 rounded-full transition-all relative shadow-inner",
                     user.has_diabetes ? "bg-brand-accent" : "bg-white/10"
                   )}
                 >
                   <div className={cn(
-                    "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                    "absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-md",
                     user.has_diabetes ? "left-7" : "left-1"
                   )} />
                 </button>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
                 <div className="flex items-center gap-3">
                   <Bell size={18} className="text-brand-muted" />
                   <div>
-                    <p className="text-sm font-medium">Notifications</p>
-                    <p className="text-xs text-brand-muted">Reminders for tasks & meds</p>
+                    <p className="text-sm font-black uppercase tracking-widest">Notifications</p>
+                    <p className="text-[10px] text-brand-muted font-medium">Enable daily reminders</p>
                   </div>
                 </div>
-                <button className="w-12 h-6 rounded-full bg-brand-accent relative">
-                  <div className="absolute top-1 left-7 w-4 h-4 bg-white rounded-full" />
+                <button 
+                  onClick={toggleNotifications}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative shadow-inner",
+                    user.notifications_enabled ? "bg-brand-accent" : "bg-white/10"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-md",
+                    user.notifications_enabled ? "left-7" : "left-1"
+                  )} />
                 </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+                <div className="flex items-center gap-3">
+                  {user.theme === 'light' ? <Sun size={18} className="text-brand-muted" /> : <Moon size={18} className="text-brand-muted" />}
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-widest">Theme</p>
+                    <p className="text-[10px] text-brand-muted font-medium">Switch to {user.theme === 'light' ? 'Dark' : 'Light'} Mode</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={toggleTheme}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative shadow-inner",
+                    user.theme === 'light' ? "bg-brand-accent" : "bg-white/10"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-md",
+                    user.theme === 'light' ? "left-7" : "left-1"
+                  )} />
+                </button>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2 px-1">
+                  <Palette size={14} className="text-brand-accent" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-muted">Accent Color</p>
+                </div>
+                <div className="flex flex-wrap gap-3 px-1">
+                  {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#ffffff'].map(color => (
+                    <button
+                      key={color}
+                      onClick={() => updateAccentColor(color)}
+                      className={cn(
+                        "w-8 h-8 rounded-full border-2 transition-all hover:scale-110",
+                        user.accent_color === color ? "border-white scale-110 shadow-lg" : "border-transparent"
+                      )}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-muted px-1">Dietary Restrictions</p>
+                <div className="flex flex-wrap gap-2">
+                  {dietaryOptions.map(option => {
+                    const isActive = user.profile?.dietary_restrictions?.split(',').includes(option);
+                    return (
+                      <button
+                        key={option}
+                        onClick={() => toggleDietary(option)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase transition-all",
+                          isActive 
+                            ? "bg-brand-accent/20 border-brand-accent text-brand-accent" 
+                            : "bg-white/5 border-white/10 text-brand-muted hover:border-white/20"
+                        )}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
 
           <div className="glass-card p-6">
-            <h3 className="text-lg font-display font-bold mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-display font-light mb-4 flex items-center gap-2">
               <Pill className="text-brand-accent" size={20} />
               Meds & Vitamins
             </h3>
@@ -321,10 +511,10 @@ export default function ProfileView({ user, challenge, onLogout, onUpdateUser, s
                     <p className="text-lg font-display font-bold">{challenge.cardio_minutes} min</p>
                   </div>
                 </div>
-                <div className="p-4 rounded-xl bg-brand-accent/5 border border-brand-accent/20">
+                {user.profile && (
                   <p className="text-xs text-brand-muted italic">"Variables are locked once a challenge begins. To change these, you must reset your progress."</p>
-                </div>
-                {user.is_admin && (
+                )}
+                {(user.is_admin || user.email?.toLowerCase() === 'clay8888yt@gmail.com') && (
                   <button 
                     onClick={() => setActiveTab('admin')}
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 transition-all font-bold"
@@ -334,27 +524,66 @@ export default function ProfileView({ user, challenge, onLogout, onUpdateUser, s
                   </button>
                 )}
                 <button 
-                  onClick={handleResetChallenge}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-400/10 text-red-400 hover:bg-red-400/20 transition-all font-bold"
+                  onClick={() => setShowResetConfirm(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-400/10 text-red-400 hover:bg-red-400/20 transition-all font-black uppercase tracking-widest text-xs"
                 >
                   <RefreshCw size={18} />
                   Reset Challenge
                 </button>
               </div>
             ) : (
-              <p className="text-brand-muted text-center py-8">No active challenge configuration found.</p>
+              <p className="text-brand-muted text-center py-8 font-medium">No active challenge configuration found.</p>
             )}
           </div>
 
           <button 
             onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-white/5 text-brand-muted hover:text-white hover:bg-white/10 transition-all font-bold"
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-white/5 text-brand-muted hover:text-white hover:bg-white/10 transition-all font-black uppercase tracking-widest text-xs"
           >
             <LogOut size={20} />
             Logout from Forge75
           </button>
         </div>
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            onClick={() => setShowResetConfirm(false)}
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="glass-card p-8 max-w-md w-full relative z-10 border-red-500/20"
+          >
+            <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Trash2 className="text-red-500" size={32} />
+            </div>
+            <h2 className="text-2xl font-display font-black text-center mb-4">Reset Progress?</h2>
+            <p className="text-brand-muted text-center mb-8 font-medium leading-relaxed">
+              This will permanently delete ALL your progress, food logs, and photo history. This action <span className="text-red-400 font-bold underline">cannot be undone</span>.
+            </p>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-4 rounded-xl bg-white/5 hover:bg-white/10 font-bold transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleResetChallenge}
+                className="flex-1 py-4 rounded-xl bg-red-500 hover:bg-red-600 text-brand-text-inverse font-black shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all"
+              >
+                Reset
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
